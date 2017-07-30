@@ -1,0 +1,7 @@
+{
+    "files.associations": {
+        "client_test.c": "cpp",
+        "main.c": "cpp",
+        "cstdlib": "cpp"
+    }
+}
