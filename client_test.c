@@ -1,5 +1,7 @@
 
-#include"sock.h"
+#include <unistd.h>
+
+#include<stdio.h>
 
 #if 1
 
@@ -7,31 +9,12 @@ int main(){
    // init_main_proc();
    #if 1
       
-//      FILE *fp=fopen(conf,"rw");
-//      if(fp==NULL){
-//          printf("FP");
-//          }
-//          else{
-//                printf("fp open failed");
-//          }
-   
-    
-    char buf[100];
-    bzero(buf,100);
+      printf("pid=%d pgrd id=%d\n",getpid(),getpgrp());
+       
+      setpgid(getpid(),0);
+      printf("modify=%d\n",getpgrp());
 
-    int fd=open_clientfd("127.0.0.1","8080");
-
-    if(fd<0){
-         // check("open clientfd");
-   }
-    while((fgets(buf,100,stdin))!=NULL){
-            
-              write(fd,buf,strlen(buf));
-              read(fd,buf,100);
-              fputs(buf,stdout);
-              fflush(stdout);
-         
-    }
+      printf("session id=%d\n",getsid(getpid()));
 
     return 1;
    #endif

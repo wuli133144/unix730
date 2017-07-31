@@ -1,5 +1,20 @@
 
 
+
+#include <stdio.h>              /* standard library functions for file input and output */
+#include <stdlib.h>             /* standard library for the C programming language, */
+#include <string.h>             /* functions implementing operations on strings  */
+#include <unistd.h>             /* provides access to the POSIX operating system API */
+#include <sys/stat.h>           /* declares the stat() functions; umask */
+#include <fcntl.h>              /* file descriptors */
+#include <syslog.h>             /* send messages to the system logger */
+#include <errno.h>              /* macros to report error conditions through error codes */
+#include <signal.h>             /* signal processing */
+#include <stddef.h>             /* defines the macros NULL and offsetof as well as the types ptrdiff_t, wchar_t, and size_t */
+
+        
+#include <poll.h>	       /* wait for events on file descriptors */
+
 #include <stdio.h>
 #include <unistd.h>
 
@@ -13,6 +28,26 @@
 
 #include "list.h"
 #include "utils.h"
+/*@
+ *@jackwu creates it
+ *@school xust
+ *@love codes 
+ *@ pthread pool 
+ @*/
+
+/**************************************************************************
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <http://www.gnu.org/licenses/>.
+**************************************************************************/
+
 
 #define PTHREAD_POOL_MAX      10
 typedef void *(*callback_t)(void *)   ;
@@ -38,8 +73,6 @@ typedef struct _task{
 LIST_HEAD(_pthread_pool,__pthread_pool_node)pthread_pool\
 =LIST_HEAD_INITIALIZER(_pthread_pool);
 
-
-
 TAILQ_HEAD(_task_pool,_task)task_pool\
 =TAILQ_HEAD_INITIALIZER(task_pool);
 
@@ -47,16 +80,11 @@ pthread_mutex_t  mutex=PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t   cond=PTHREAD_COND_INITIALIZER;
 pthread_mutex_t  mutex_task=PTHREAD_MUTEX_INITIALIZER;
 
-
+static int task_count=0;//task queue 
 
 static pthread_pool_t *alloc_pool_node();
 static void create_pthread_pool();
 static void insert(int );
-
-
-
-
-
 static void insert_task(void *arg);
 static void  remove_task();
 
@@ -81,9 +109,12 @@ static void remove_task(){
                 pre=item;
                 pthread_mutex_trylock(&mutex_task);
                 TAILQ_REMOVE(&task_pool,item,entry);
+                if(task_count>0)
+                    task_count--;
                 pthread_mutex_unlock(&mutex_task);
                 free(pre);
                 pre=NULL;
+                
                 break;
          }
 }
@@ -97,7 +128,8 @@ static void insert_task(void *arg){
         item=alloc_task();
         item->arg=arg;
         pthread_mutex_trylock(&mutex_task);
-        TAILQ_INSERT_TAIL(&task_pool,item,entry);
+        TAILQ_INSERT_TAIL(&task_pool,item,entry); 
+        task_count++;
         pthread_mutex_unlock(&mutex_task);
 
         pthread_mutex_lock(&mutex);
@@ -138,12 +170,13 @@ void * function(void *arg){
         //  pthread_mutex_lock(&mutex);      //1
          while(1){
                   pthread_mutex_lock(&mutex);
-                  pthread_cond_wait(&cond,&mutex); //如g_cond无信号,则阻塞
-                  pthread_mutex_unlock(&mutex);
-                  t_task *task=get_task();
+                  while(task_count==0){
                   
+                     pthread_cond_wait(&cond,&mutex); //如g_cond无信号,则阻塞
+                  
+                  }
+                  t_task *task=get_task();
                   // append_task(call,task->arg);
-
                   int connfd=*(int *)(task->arg);
                   char buf[100]={0};
                   
@@ -200,9 +233,10 @@ int  append_task(callback_t callback,void* arg){
 }
 
 
+
 void destroy_pool(){
         pthread_pool_t *item=NULL;
-          pthread_pool_t *pre=NULL;
+        pthread_pool_t *pre=NULL;
          LIST_FOREACH(item,&pthread_pool,entry){
                 pre=item;
                 pthread_mutex_destroy(&(item->mutex));
@@ -216,9 +250,7 @@ void destroy_pool(){
 }
 
 
-
 void init_pthreadpool(){
-
        pthread_t pid;
        pthread_pool_t *item=NULL;
        create_pthread_pool();
